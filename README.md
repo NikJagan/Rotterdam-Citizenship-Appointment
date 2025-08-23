@@ -1,4 +1,4 @@
-## Rotterdam Citizenship Appointment Scraper
+## Rotterdam Municipality Naturalization Appointment
 
 A Playwright-based Python script that checks appointment availability for Rotterdam naturalisation and notifies a Supabase Edge Function when a slot appears.
 
@@ -42,3 +42,4 @@ python -m playwright install chromium
 
 ### License
 See `LICENSE` for details.
+
