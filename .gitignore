@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+
+# Environments
+.env
+.venv/
+venv/
+
+# Playwright
+playwright-report/
+
+# OS files
+.DS_Store
+Thumbs.db
