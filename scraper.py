@@ -19,8 +19,8 @@ def open_browser_and_navigate():
     # Start Playwright
     playwright = sync_playwright().start()
     
-    # Launch Chromium browser (non-headless for visual verification)
-    browser = playwright.chromium.launch(headless=False)
+    # Launch Chromium browser in headless mode
+    browser = playwright.chromium.launch(headless=True)
     
     # Create a new browser context and page
     context = browser.new_context()
