@@ -2,6 +2,8 @@ from playwright.sync_api import sync_playwright
 import time
 import os
 import requests
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
 # Load environment variables from a .env file if available
 try:
@@ -20,7 +22,7 @@ def open_browser_and_navigate():
     playwright = sync_playwright().start()
     
     # Launch Chromium browser in headless mode
-    browser = playwright.chromium.launch(headless=True)
+    browser = playwright.chromium.launch(headless=True, args=["--disable-dev-shm-usage"])
     
     # Create a new browser context and page
     context = browser.new_context()
@@ -168,7 +170,25 @@ def check_centrum_once() -> str:
             playwright.stop()
 
 
+class HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == "/health":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(b'{"status":"ok"}')
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+def start_health_server():
+    port = int(os.getenv("PORT", "8080"))
+    server = HTTPServer(("0.0.0.0", port), HealthHandler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+
+
 if __name__ == "__main__":
+    start_health_server()
     # Keep checking in a loop; on unavailable sleep 5 minutes; otherwise sleep 6 hours
     while True:
         status = check_centrum_once()
