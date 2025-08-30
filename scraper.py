@@ -4,6 +4,8 @@ import os
 import requests
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
+import sys
+import logging
 
 # Load environment variables from a .env file if available
 try:
@@ -11,6 +13,16 @@ try:
     load_dotenv()
 except Exception:
     pass
+
+
+# Configure structured logging to stdout
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
+    force=True,
+)
+log = logging.getLogger("scraper")
 
 
 def open_browser_and_navigate():
@@ -47,7 +59,7 @@ def check_centrum_once() -> str:
 
         # Click the "Afspraak maken" link
         try:
-            print("🔍 Looking for 'Afspraak maken' link...")
+            log.info("🔍 Looking for 'Afspraak maken' link...")
 
             # Wait for a new page/tab to open when clicking the link
             with context.expect_page() as new_page_info:
@@ -55,31 +67,31 @@ def check_centrum_once() -> str:
                 afspraak_link = page.locator('a.styles_button__BEjUn').first
                 if afspraak_link.is_visible():
                     afspraak_link.click()
-                    print("✅ Successfully clicked 'Afspraak maken' link!")
+                    log.info("✅ Successfully clicked 'Afspraak maken' link!")
                 else:
                     # Fallback to text-based selection
                     page.click("text=Afspraak maken")
-                    print("✅ Successfully clicked 'Afspraak maken' via text!")
+                    log.info("✅ Successfully clicked 'Afspraak maken' via text!")
 
             # Get the new page that opened
             new_page = new_page_info.value
-            print("🔄 New tab opened, switching to it...")
+            log.info("🔄 New tab opened, switching to it...")
 
             # Wait for the new page to load
             new_page.wait_for_load_state("networkidle")
 
             # Switch to the new page (tab)
             page = new_page
-            print("✅ Successfully switched to new tab!")
+            log.info("✅ Successfully switched to new tab!")
 
         except Exception as e:
-            print(f"⚠️  Could not find or click 'Afspraak maken' link, or new tab didn't open: {e}")
+            log.warning(f"⚠️  Could not find or click 'Afspraak maken' link, or new tab didn't open: {e}")
             # If no new tab opened, continue with the current page
             page.wait_for_load_state("networkidle")
 
         # Click the "Verder" button on the new page
         try:
-            print("🔍 Looking for 'Verder' button...")
+            log.info("🔍 Looking for 'Verder' button...")
 
             # Wait a bit for the page to fully render
             page.wait_for_timeout(2000)
@@ -88,21 +100,21 @@ def check_centrum_once() -> str:
             verder_button = page.locator("text=Verder").first
             if verder_button.is_visible():
                 verder_button.click()
-                print("✅ Successfully clicked 'Verder' button!")
+                log.info("✅ Successfully clicked 'Verder' button!")
             else:
                 # Try alternative selectors for the button
                 page.click("button:has-text('Verder')")
-                print("✅ Successfully clicked 'Verder' button via alternative selector!")
+                log.info("✅ Successfully clicked 'Verder' button via alternative selector!")
 
             # Wait for any navigation after clicking
             page.wait_for_load_state("networkidle")
 
         except Exception as e:
-            print(f"⚠️  Could not find or click 'Verder' button: {e}")
+            log.warning(f"⚠️  Could not find or click 'Verder' button: {e}")
 
         # Click the "Centrum" option/text on the page
         try:
-            print("🔍 Looking for 'Centrum' option...")
+            log.info("🔍 Looking for 'Centrum' option...")
 
             # Allow the UI to render the options
             page.wait_for_timeout(1000)
@@ -111,7 +123,7 @@ def check_centrum_once() -> str:
             centrum_option = page.locator("text=Centrum").first
             if centrum_option.is_visible():
                 centrum_option.click()
-                print("✅ Successfully clicked 'Centrum'!")
+                log.info("✅ Successfully clicked 'Centrum'!")
             else:
                 # Try alternative selectors commonly used for options/links/buttons
                 clicked = False
@@ -125,18 +137,18 @@ def check_centrum_once() -> str:
                     if locator.is_visible():
                         locator.click()
                         clicked = True
-                        print("✅ Successfully clicked 'Centrum' via alternative selector!")
+                        log.info("✅ Successfully clicked 'Centrum' via alternative selector!")
                         break
                 if not clicked:
                     # Fallback to direct text click
                     page.click("text=Centrum")
-                    print("✅ Successfully clicked 'Centrum' via text click!")
+                    log.info("✅ Successfully clicked 'Centrum' via text click!")
 
             # Wait for any navigation or async work after clicking
             page.wait_for_load_state("networkidle")
 
         except Exception as e:
-            print(f"⚠️  Could not find or click 'Centrum': {e}")
+            log.warning(f"⚠️  Could not find or click 'Centrum': {e}")
 
         # After clicking Centrum, check for the unavailability message; if present, return "unavailable". Otherwise, return "available".
         try:
@@ -154,13 +166,13 @@ def check_centrum_once() -> str:
                 error_visible = page.locator("text=Het spijt ons.").first.is_visible()
 
             if error_visible:
-                print("❌ No appointment availability shown for 'Centrum'.")
+                log.info("❌ No appointment availability shown for 'Centrum'.")
                 return "unavailable"
             else:
-                print("✅ Availability likely present for 'Centrum'.")
+                log.info("✅ Availability likely present for 'Centrum'.")
                 return "available"
         except Exception as e:
-            print(f"⚠️  Error while checking availability or taking screenshot: {e}")
+            log.warning(f"⚠️  Error while checking availability or taking screenshot: {e}")
             return "unavailable"
     finally:
         # Clean up: close browser and stop playwright every attempt
@@ -184,6 +196,7 @@ class HealthHandler(BaseHTTPRequestHandler):
 def start_health_server():
     port = int(os.getenv("PORT", "8080"))
     server = HTTPServer(("0.0.0.0", port), HealthHandler)
+    log.info(f"Health server listening on 0.0.0.0:{port}")
     threading.Thread(target=server.serve_forever, daemon=True).start()
 
 
@@ -193,7 +206,7 @@ if __name__ == "__main__":
     while True:
         status = check_centrum_once()
         if status == "unavailable":
-            print("⏳ No availability. Sleeping 5 minutes before retry...")
+            log.info("⏳ No availability. Sleeping 5 minutes before retry...")
             time.sleep(300)
         else:
             function_url = os.getenv("SUPABASE_FUNCTION_URL")
@@ -201,5 +214,5 @@ if __name__ == "__main__":
                 requests.post(function_url, json={
                     "html": "<p>Appointment found! Click <a href='https://www.rotterdam.nl/nederlandse-nationaliteit-aanvragen/start-naturalisatie-aanvragen '>here</a> to book.</p>"
                 })
-            print("😴 Availability detected. Sleeping 6 hours before next run...")
+            log.info("😴 Availability detected. Sleeping 6 hours before next run...")
             time.sleep(6 * 60 * 60)
